@@ -1,0 +1,125 @@
+---
+title: "report_handling"
+author: "SSP35"
+date: "1/12/2021"
+output: pdf_document
+---
+
+```{r}
+library(readxl)
+library(writexl)
+```
+
+
+```{r}
+template_header <- data.frame(read_excel("./files/template.xlsx", col_names = FALSE, n_max = 4), stringsAsFactors = FALSE)
+colnames(template_header) <- template_header[3,]
+template_header[is.na(template_header)] <- ""
+
+
+template <- data.frame(Date = as.Date(character()), Receipt = as.numeric(), 
+                       Name = as.character(), "cheq/neft" = as.character(),
+                       balance = as.numeric(), "Handling charges" = as.numeric(),
+                       Courier = as.numeric(), "Web cost" = as.numeric(), 
+                       Amt = as.numeric(), "Book total" = as.numeric(),
+                       "Maanavi Jeevanatil Gudha Rahasya Part 1" = as.numeric(),	
+                       "Maanavi Jeevanatil Gudha Rahasya Part 2" = as.numeric(),
+                       "Maanavi Jeevanatil Gudha Rahasya Part 3" = as.numeric(),
+                       "Maanavi Jeevanatil Gudha Rahasya Part 4" = as.numeric(),
+                       "Maanavi Jeevanatil Gudha Rahasya Part 5" = as.numeric(),
+                       "Maanavi Jeevanatil Gudha Rahasya Part 6" = as.numeric(),
+                       "Maanavi Jeevanatil Gudha Rahasya Part 7" = as.numeric(),
+                       "Aatmasiddhi" = as.numeric(),
+                       "Agamyavani" = as.numeric(),
+                       "Bharatiya Gudha Vidhya" = as.numeric(),
+                       "Amaratvakade Vaatchaal" = as.numeric(),
+                       "Jeevan Mukticha Marg" = as.numeric(),
+                       "Shri Datta Durga Samvad" = as.numeric(),
+                       "Ishwar Praptiche Marg" = as.numeric(),
+                       "Ishwar Bhaktiche Anubhav" = as.numeric(),
+                       "Vihangam Marg" = as.numeric(),
+                       "Shri Datta Upanishad" = as.numeric(),
+                       "Prophecies" = as.numeric(),
+                       "The Path Divine" = as.numeric(),
+                       "Spiritual Journey" = as.numeric(),
+                       "Siddhyogyachya Sahavasaat - Part 1" = as.numeric(),
+                       "Narmada" = as.numeric(),
+                       "Narmada vahanmarg" = as.numeric(),
+                       "Siddhyogyachya Sahavasaat - Part 2" = as.numeric(),
+                       "Shri Swami Samarth Saptashati" = as.numeric(),
+                       "Gurucharitra" = as.numeric(),
+                       "Sankshipta Shri Gurucharitra" = as.numeric(),
+                       "Shri Dattaleelamrut-Shri Siddhaleelamrut" = as.numeric(),
+                       "Shri Durga Saptashati" = as.numeric(),
+                       "Shri Durga Trishati" = as.numeric(),
+                       "Shri Datta Gita" = as.numeric(),
+                       "Paramanand Lahri" = as.numeric(),
+                       "Mahayogi" = as.numeric(),
+                       "Datta Vijay" = as.numeric(), 
+                       Library= as.numeric(), Library= as.numeric(),
+                       "Settlement ID" = as.character(),
+                       check.names = FALSE, 
+                       stringsAsFactors = FALSE)
+```
+
+
+
+```{r}
+# Read Sales data
+final_data <- template
+final_data <- rbind(final_data, template_header[4,])
+sales <- read_xlsx("./files/Sales.xlsx")
+for(i in 1:nrow(sales))
+{
+    final_data[i+1,"Receipt"] <- as.numeric(unlist(strsplit(sales$`Order #`[i], "_"))[2])
+    final_data$Date[i+1] <- as.character.Date(sales$Date[i])
+    final_data$`Web cost`[i+1] <- as.numeric(sales$`N. Revenue`[i])
+    final_data$`Book total`[i+1] <- sales$`Items Sold`[i]
+    lst <- lapply(unlist(strsplit(sales$`Product(s)`[i], ", ")), 
+                  FUN = function(x) unlist(strsplit(x, "× ")))
+    for(j in 1:length(lst))
+    {
+        sublst = unlist(lst[[j]])
+        if(sublst[2] == "Maanavi Jeevanatil Gudha Rahasya - Set")
+        {
+            final_data[i+1, paste("Maanavi Jeevanatil Gudha Rahasya Part", 1:7)] <- as.numeric(sublst[1])
+            
+        }
+        else if(sublst[2] == "Siddhyogyachya Sahavasaat Set of 2")
+        {
+            final_data[i+1, paste("Siddhyogyachya Sahavasaat - Part", 1:2)] <- as.numeric(sublst[1])
+        }
+        else
+        {
+            final_data[i+1, sublst[2]] = as.numeric(sublst[1])
+        }
+    }
+    
+    final_data$Amt[i+1] <- sum(as.numeric(final_data[i+1,11:44])*as.numeric(final_data[1,11:44]), na.rm = T)
+    final_data$`Handling charges`[i+1] <- as.numeric(final_data$`Web cost`[i+1]) - as.numeric(final_data$Amt[i+1])
+}
+
+
+```
+
+```{r}
+# Read RazorPay data
+
+razorpay <- read_xlsx("./files/settlements.xlsx")
+for(i in 1:nrow(razorpay))
+{
+    receipt <- as.numeric(unlist(strsplit(razorpay$entity_description[i], "_"))[2])
+    # final_data$`cheq/neft`[final_data$Receipt==receipt] <- razorpay$payment_method[i]
+    final_data$Courier[final_data$Receipt==receipt] <- as.numeric(razorpay$amount[i]) - as.numeric(razorpay$`fee (exclusive tax)`[i]) - as.numeric(razorpay$tax[i]) - as.numeric(final_data$Amt[final_data$Receipt==receipt])
+    final_data$`Settlement ID`[final_data$Receipt==receipt] <- razorpay$settlement_id[i]
+}
+```
+
+
+```{r}
+final_data[is.na(final_data)] <- ""
+final_data <- final_data[order(final_data$Receipt),]
+write.table(template_header[1:3,], "SalesWB_edited.csv", sep = ",", row.names = FALSE, col.names = FALSE, append = FALSE)
+write.table(final_data, "SalesWB_edited.csv", sep = ",", row.names = FALSE, col.names = FALSE, append = TRUE)
+```
+
